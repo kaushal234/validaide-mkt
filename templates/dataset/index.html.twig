@@ -1,0 +1,87 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Datasets{% endblock %}
+
+{% macro sort_link(column, label, currentSort, currentDirection, name) %}
+    {% set isActive = currentSort == column %}
+    {% set nextDirection = (isActive and currentDirection|lower == 'asc') ? 'desc' : 'asc' %}
+    <a class="text-decoration-none text-reset" href="{{ path('dataset_index', {sort: column, direction: nextDirection, name: name}) }}">
+        {{ label }}{% if isActive %} {{ currentDirection|lower == 'asc' ? '↑' : '↓' }}{% endif %}
+    </a>
+{% endmacro %}
+
+{% block body %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Datasets</h1>
+        <a class="btn btn-primary" href="{{ path('dataset_upload') }}">Upload dataset</a>
+    </div>
+
+    <form method="get" class="mb-3">
+        <div class="input-group">
+            <input type="text" name="name" value="{{ name }}" class="form-control" placeholder="Search by name">
+            <input type="hidden" name="sort" value="{{ sort }}">
+            <input type="hidden" name="direction" value="{{ direction }}">
+            <button class="btn btn-outline-secondary" type="submit">Search</button>
+            {% if name %}
+                <a class="btn btn-outline-secondary" href="{{ path('dataset_index') }}">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if total == 0 %}
+        <div class="card">
+            <div class="card-body text-center text-muted py-5">
+                {% if name %}
+                    No datasets match "{{ name }}".
+                {% else %}
+                    No datasets yet. Upload a CSV to calculate its mean kinetic temperature.
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>{{ _self.sort_link('name', 'Name', sort, direction, name) }}</th>
+                            <th>{{ _self.sort_link('submittedAt', 'Submitted', sort, direction, name) }}</th>
+                            <th class="text-end">{{ _self.sort_link('mkt', 'MKT (°C)', sort, direction, name) }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dataset in datasets %}
+                            <tr>
+                                <td>{{ dataset.name }}</td>
+                                <td>{{ dataset.submittedAt|date('Y-m-d H:i') }}</td>
+                                <td class="text-end">{{ dataset.mkt is null ? '—' : dataset.mkt|number_format(2) }}</td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-secondary" href="{{ path('dataset_show', {id: dataset.id}) }}">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if pages > 1 %}
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center mb-0">
+                    <li class="page-item {{ page <= 1 ? 'disabled' : '' }}">
+                        <a class="page-link" href="{{ path('dataset_index', {page: page - 1, sort: sort, direction: direction, name: name}) }}">Previous</a>
+                    </li>
+                    {% for p in 1..pages %}
+                        <li class="page-item {{ p == page ? 'active' : '' }}">
+                            <a class="page-link" href="{{ path('dataset_index', {page: p, sort: sort, direction: direction, name: name}) }}">{{ p }}</a>
+                        </li>
+                    {% endfor %}
+                    <li class="page-item {{ page >= pages ? 'disabled' : '' }}">
+                        <a class="page-link" href="{{ path('dataset_index', {page: page + 1, sort: sort, direction: direction, name: name}) }}">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        {% endif %}
+    {% endif %}
+{% endblock %}
