@@ -10,6 +10,7 @@ use App\Dataset\Dto\DatasetUploadDto;
 use App\Dataset\DatasetUploadType;
 use App\Mkt\Exception\EmptyTemperatureSetException;
 use App\Repository\DatasetRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\HttpFoundation\Request;
@@ -48,6 +49,13 @@ final class DatasetController extends AbstractController
     {
         $upload = new DatasetUploadDto();
         $form = $this->createForm(DatasetUploadType::class, $upload);
+
+        if ($this->postExceededServerLimit($request)) {
+            $form->addError(new FormError('The upload was too large for the server to accept. Please upload a CSV file of at most 2 MB.'));
+
+            return $this->render('dataset/upload.html.twig', ['form' => $form]);
+        }
+
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -85,5 +93,40 @@ final class DatasetController extends AbstractController
         return $this->render('dataset/show.html.twig', [
             'dataset' => $dataset,
         ]);
+    }
+
+    #[Route('/datasets/{id}/delete', name: 'dataset_delete', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function delete(int $id, Request $request, DatasetRepository $datasets, EntityManagerInterface $entityManager): Response
+    {
+        $dataset = $datasets->find($id);
+        if (null === $dataset) {
+            throw $this->createNotFoundException();
+        }
+
+        if (!$this->isCsrfTokenValid('delete_dataset_'.$dataset->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $name = $dataset->getName();
+        $entityManager->remove($dataset);
+        $entityManager->flush();
+
+        $this->addFlash('success', \sprintf('Dataset "%s" deleted.', $name));
+
+        return $this->redirectToRoute('dataset_index');
+    }
+
+    private function postExceededServerLimit(Request $request): bool
+    {
+        if (!$request->isMethod('POST')) {
+            return false;
+        }
+
+        $contentLength = (int) $request->server->get('CONTENT_LENGTH', 0);
+        if ($contentLength <= 0) {
+            return false;
+        }
+
+        return [] === $request->request->all() && [] === $request->files->all();
     }
 }

@@ -27,6 +27,23 @@
         </div>
     </div>
 
+    {% if dataset.readings|length > 0 %}
+        <div class="card mb-4">
+            <div class="card-header">Temperature over time</div>
+            <div class="card-body">
+                <canvas id="temperatureChart" height="120"></canvas>
+            </div>
+        </div>
+
+        <script type="application/json" id="chartData">
+            {{ {
+                labels: dataset.readings|map(r => r.recordedAt|date('Y-m-d H:i')),
+                temperatures: dataset.readings|map(r => r.temperature),
+                mkt: dataset.mkt
+            }|json_encode|raw }}
+        </script>
+    {% endif %}
+
     <div class="card">
         <div class="card-header">Readings ({{ dataset.readings|length }})</div>
         <div class="table-responsive">
@@ -48,4 +65,50 @@
             </table>
         </div>
     </div>
+{% endblock %}
+
+{% block javascripts %}
+    {% if dataset.readings|length > 0 %}
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+        <script>
+            (function () {
+                const data = JSON.parse(document.getElementById('chartData').textContent);
+                const ctx = document.getElementById('temperatureChart');
+
+                const datasets = [{
+                    label: 'Temperature (°C)',
+                    data: data.temperatures,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.2,
+                    pointRadius: 2,
+                }];
+
+                if (data.mkt !== null) {
+                    datasets.push({
+                        label: 'MKT (' + Number(data.mkt).toFixed(2) + ' °C)',
+                        data: data.labels.map(() => data.mkt),
+                        borderColor: '#dc3545',
+                        borderDash: [6, 6],
+                        pointRadius: 0,
+                        fill: false,
+                    });
+                }
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: data.labels, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            y: { title: { display: true, text: '°C' } },
+                            x: { ticks: { maxRotation: 45, minRotation: 0 } },
+                        },
+                    },
+                });
+            })();
+        </script>
+    {% endif %}
 {% endblock %}

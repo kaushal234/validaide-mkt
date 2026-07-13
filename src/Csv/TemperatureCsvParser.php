@@ -8,6 +8,10 @@ use App\Csv\Exception\CsvParseException;
 
 final class TemperatureCsvParser implements TemperatureCsvParserInterface
 {
+    private const float MIN_TEMPERATURE = -100.0;
+    private const float MAX_TEMPERATURE = 100.0;
+    private const int MAX_ROWS = 100000;
+
     public function parse(\SplFileObject $file): array
     {
         $rows = $this->readRows($file);
@@ -17,6 +21,11 @@ final class TemperatureCsvParser implements TemperatureCsvParserInterface
         }
 
         $columns = $this->resolveColumns($rows[0]);
+
+        if (null === $columns) {
+            throw new CsvParseException(['Could not find the "time" and "temperature" columns. The file does not look like temperature data.']);
+        }
+
         $startIndex = $columns['hasHeader'] ? 1 : 0;
 
         $errors = [];
@@ -46,7 +55,7 @@ final class TemperatureCsvParser implements TemperatureCsvParserInterface
             }
 
             if (null === $temperature) {
-                $errors[] = \sprintf('Row %d: the temperature "%s" is not a number.', $rowNumber, $rawTemperature);
+                $errors[] = \sprintf('Row %d: the temperature "%s" is not a valid number between %g and %g °C.', $rowNumber, $rawTemperature, self::MIN_TEMPERATURE, self::MAX_TEMPERATURE);
             }
 
             if (null !== $recordedAt && null !== $temperature) {
@@ -74,13 +83,18 @@ final class TemperatureCsvParser implements TemperatureCsvParserInterface
             if (false === $row || [null] === $row || null === $row) {
                 continue;
             }
+
+            if (\count($rows) >= self::MAX_ROWS) {
+                throw new CsvParseException([\sprintf('The file has too many rows (more than %s). Please upload a smaller dataset.', number_format(self::MAX_ROWS))]);
+            }
+
             $rows[] = array_map(static fn ($value): string => (string) $value, $row);
         }
 
         return $rows;
     }
 
-    private function resolveColumns(array $firstRow): array
+    private function resolveColumns(array $firstRow): ?array
     {
         $isData = null !== $this->parseTime(trim($firstRow[0] ?? ''))
             && null !== $this->parseTemperature(trim($firstRow[1] ?? ''));
@@ -97,12 +111,12 @@ final class TemperatureCsvParser implements TemperatureCsvParserInterface
             return ['hasHeader' => true, 'time' => $timeIndex, 'temperature' => $temperatureIndex];
         }
 
-        return ['hasHeader' => true, 'time' => 0, 'temperature' => 1];
+        return null;
     }
 
     private function parseTime(string $value): ?\DateTimeImmutable
     {
-        if ('' === $value) {
+        if ('' === $value || !$this->isPrintable($value)) {
             return null;
         }
 
@@ -122,11 +136,22 @@ final class TemperatureCsvParser implements TemperatureCsvParserInterface
 
     private function parseTemperature(string $value): ?float
     {
-        if (1 !== preg_match('/^[+-]?\d+(\.\d+)?$/', $value)) {
+        if (!$this->isPrintable($value) || 1 !== preg_match('/^[+-]?\d+(\.\d+)?$/', $value)) {
             return null;
         }
 
-        return (float) $value;
+        $temperature = (float) $value;
+
+        if ($temperature < self::MIN_TEMPERATURE || $temperature > self::MAX_TEMPERATURE) {
+            return null;
+        }
+
+        return $temperature;
+    }
+
+    private function isPrintable(string $value): bool
+    {
+        return 0 === preg_match('/[\x00-\x08\x0E-\x1F]/', $value);
     }
 
     private function isBlank(array $cells): bool
