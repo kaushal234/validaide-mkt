@@ -1,0 +1,8 @@
+.git
+var/
+vendor/
+node_modules/
+.env.local
+.env.*.local
+compose.override.yaml
+.phpunit.cache/
