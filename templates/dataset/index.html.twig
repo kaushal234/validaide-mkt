@@ -58,7 +58,7 @@
                                 <td class="text-end">{{ dataset.mkt is null ? '—' : dataset.mkt|number_format(2) }}</td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-outline-secondary" href="{{ path('dataset_show', {id: dataset.id}) }}">View</a>
-                                    <form method="post" action="{{ path('dataset_delete', {id: dataset.id}) }}" class="d-inline" onsubmit="return confirm('Delete dataset &quot;{{ dataset.name }}&quot;? This cannot be undone.');">
+                                    <form method="post" action="{{ path('dataset_delete', {id: dataset.id}) }}" class="d-inline" onsubmit="return confirm('Delete this dataset? This cannot be undone.');">
                                         <input type="hidden" name="_token" value="{{ csrf_token('delete_dataset_' ~ dataset.id) }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                     </form>
